@@ -191,7 +191,7 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
         }
     }
 
-    override fun onPocketStateChanged(inPocket: Boolean) {
+    fun onPocketStateChanged(inPocket: Boolean) {
         // Do nothing
     }
 
