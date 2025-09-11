@@ -48,17 +48,18 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
         object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 when (intent.action) {
-                AudioManager.STREAM_MUTE_CHANGED_ACTION -> {
-                    val stream = intent.getIntExtra(AudioManager.EXTRA_VOLUME_STREAM_TYPE, -1)
-                        val state = intent.getBooleanExtra(
-                          AudioManager.EXTRA_STREAM_VOLUME_MUTED, false
-                        )
-                        if (stream == AudioSystem.STREAM_MUSIC && !state) {
-                            wasMuted = false
-                        }
-                }
+                    AudioManager.STREAM_MUTE_CHANGED_ACTION -> {
+                        val stream = intent.getIntExtra(AudioManager.EXTRA_VOLUME_STREAM_TYPE, -1)
+                            val state = intent.getBooleanExtra(
+                            AudioManager.EXTRA_STREAM_VOLUME_MUTED, false
+                            )
+                            if (stream == AudioSystem.STREAM_MUSIC && !state) {
+                                wasMuted = false
+                            }
+                    }
 
-                Intent.ACTION_BOOT_COMPLETED -> populateKeyState(false)
+                    Intent.ACTION_BOOT_COMPLETED -> populateKeyState(false)
+                }
             }
         }
 
