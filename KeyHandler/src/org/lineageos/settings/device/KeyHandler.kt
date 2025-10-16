@@ -57,8 +57,6 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
                                 wasMuted = false
                             }
                     }
-
-                    Intent.ACTION_BOOT_COMPLETED -> populateKeyState(false)
                 }
             }
         }
@@ -179,17 +177,8 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
         }
 
         prevKeyCode = keyCodeValue
-        populateKeyState(true)
 
         return null
-    }
-
-    private fun populateKeyState(vibrate: Boolean) {
-        when (File("/proc/tristatekey/tri_state").readText().trim()) {
-            "1" -> handleMode(POSITION_TOP, vibrate)
-            "2" -> handleMode(POSITION_MIDDLE, vibrate)
-            "3" -> handleMode(POSITION_BOTTOM, vibrate)
-        }
     }
 
     fun onPocketStateChanged(inPocket: Boolean) {
