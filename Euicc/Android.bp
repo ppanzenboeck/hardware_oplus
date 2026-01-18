@@ -31,10 +31,3 @@ prebuilt_etc {
     product_specific: true,
 }
 
-prebuilt_etc {
-    name: "hidden-api-whitelist-org.lineageos.euicc.xml",
-    relative_install_path: "sysconfig",
-    filename: "hidden-api-whitelist-org.lineageos.euicc.xml",
-    src: "hidden-api-whitelist-org.lineageos.euicc.xml",
-    product_specific: true,
-}
