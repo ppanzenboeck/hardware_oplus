@@ -1,8 +1,8 @@
 /*
- * Copyright (C) 2019 CypherOS
- * Copyright (C) 2014-2020 Paranoid Android
- * Copyright (C) 2023 The LineageOS Project
- * Copyright (C) 2023 Yet Another AOSP Project
+ * SPDX-FileCopyrightText: 2019 CypherOS
+ * SPDX-FileCopyrightText: 2014-2020 Paranoid Android
+ * SPDX-FileCopyrightText: 2023-2026 The LineageOS Project
+ * SPDX-FileCopyrightText: 2023 Yet Another AOSP Project
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -26,6 +26,10 @@ import android.view.animation.OvershootInterpolator
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.content.res.ColorStateList
+import android.util.Log
+import android.util.TypedValue
+import androidx.core.graphics.ColorUtils
 
 /** View with some logging to show that its being run. */
 class AlertSliderDialog(private var context: Context) :
@@ -127,6 +131,7 @@ class AlertSliderDialog(private var context: Context) :
         var endX = xPos
         var endY = yPos
         if (isLand) endX += delta else endY += delta
+
         if (isShowing()) {
             animatePosition(endX, endY, position, ringerMode)
         } else {
@@ -206,6 +211,7 @@ class AlertSliderDialog(private var context: Context) :
                 }
             )
         }
+
         getWindow()?.let {
             it.attributes =
                 it.attributes.apply {
