@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="alert_slider_invert_colors_title">Invert dialog colors</string>
+    <string name="alert_slider_invert_colors_summary">Swap the icon/text and background colors of the alert slider dialog</string>
+    <string name="alert_slider_notification_dialog_title_custom">Show dialog</string>
+    <string name="alert_slider_notification_dialog_summary_custom">Show a dialog when the position of alert slider changes.</string>
+</resources>
