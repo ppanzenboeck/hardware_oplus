@@ -32,7 +32,7 @@ import android.util.TypedValue
 import androidx.core.graphics.ColorUtils
 
 /** View with some logging to show that its being run. */
-class AlertSliderDialog(private var context: Context) :
+class AlertSliderDialog(private var context: Context, private var sysuiContext: Context) :
     Dialog(context, R.style.alert_slider_theme) {
     private val dialogView by lazy { findViewById<LinearLayout>(R.id.alert_slider_dialog) }
     private val frameView by lazy { findViewById<ViewGroup>(R.id.alert_slider_view) }
@@ -120,7 +120,7 @@ class AlertSliderDialog(private var context: Context) :
     }
 
     @Synchronized
-    fun setState(position: Int, ringerMode: Int) {
+    fun setState(position: Int, ringerMode: Int, invertColors: Boolean) {
         val delta =
             length *
                 when (position) {
@@ -133,15 +133,15 @@ class AlertSliderDialog(private var context: Context) :
         if (isLand) endX += delta else endY += delta
 
         if (isShowing()) {
-            animatePosition(endX, endY, position, ringerMode)
+            animatePosition(endX, endY, position, ringerMode, invertColors)
         } else {
             applyOnStart(ringerMode)
-            applyOnEnd(endX, endY, position)
+            applyOnEnd(endX, endY, position, invertColors)
         }
     }
 
     @Synchronized
-    private fun animatePosition(endX: Int, endY: Int, position: Int, ringerMode: Int) {
+    private fun animatePosition(endX: Int, endY: Int, position: Int, ringerMode: Int, invertColors: Boolean) {
         if (isAnimating) animator.cancel()
         animator = ValueAnimator()
         animator.setDuration(100)
@@ -173,7 +173,7 @@ class AlertSliderDialog(private var context: Context) :
                 }
 
                 override fun onAnimationEnd(animation: Animator) {
-                    applyOnEnd(endX, endY, position)
+                    applyOnEnd(endX, endY, position, invertColors)
                     isAnimating = false
                 }
 
@@ -193,7 +193,7 @@ class AlertSliderDialog(private var context: Context) :
             ?: run { textView!!.setText(R.string.alert_slider_mode_none) }
     }
 
-    private fun applyOnEnd(endX: Int, endY: Int, position: Int) {
+    private fun applyOnEnd(endX: Int, endY: Int, position: Int, invertColors: Boolean) {
         if (isLeft) {
             frameView!!.setBackgroundResource(
                 when (rotation) {
@@ -211,6 +211,23 @@ class AlertSliderDialog(private var context: Context) :
                 }
             )
         }
+
+        val isDark = (sysuiContext.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+
+        val bgResId = if (isDark) android.R.color.system_neutral1_800 else android.R.color.system_neutral1_100
+        val accentResId = if (isDark) android.R.color.system_accent1_100 else android.R.color.system_accent1_500
+
+        val bgColor = sysuiContext.getColor(bgResId)
+        val accentColor = sysuiContext.getColor(accentResId)
+
+        val finalBg = if (invertColors) accentColor else bgColor
+        val finalAccent = if (invertColors) bgColor else accentColor
+
+        val tonalColor = getTonalTextColor(finalBg, finalAccent)
+
+        frameView!!.backgroundTintList = ColorStateList.valueOf(finalBg)
+        iconView!!.imageTintList = ColorStateList.valueOf(tonalColor)
+        textView!!.setTextColor(tonalColor)
 
         getWindow()?.let {
             it.attributes =
@@ -285,5 +302,38 @@ class AlertSliderDialog(private var context: Context) :
                 KeyHandler.ZEN_TOTAL_SILENCE to R.string.alert_slider_mode_dnd_total_silence,
                 KeyHandler.ZEN_ALARMS_ONLY to R.string.alert_slider_mode_dnd_alarms_only
             )
+
+        /**
+         * Calculates a readable tonal text color (ARGB) to sit on top of the given background color.
+         * Uses luminance to pick black or white, then blends the accent color until WCAG 6.5:1 contrast is met.
+         */
+        @JvmStatic
+        private fun getTonalTextColor(bgColor: Int, accentColor: Int): Int {
+            val bgLum = ColorUtils.calculateLuminance(bgColor)
+            val isBgLight = bgLum > 0.5
+            val targetColor = if (isBgLight) android.graphics.Color.BLACK else android.graphics.Color.WHITE
+
+            val minContrast = 6.5
+            var blendRatio = 0.0f
+
+            // If the raw accent already has enough contrast against the background, use it immediately
+            if (ColorUtils.calculateContrast(accentColor, bgColor) >= minContrast) {
+                return accentColor
+            }
+
+            Log.d("AlertSliderDialog", "Calculating high-end tint for bg=${Integer.toHexString(bgColor)}")
+
+            // Iterative blend loop to find the perfect tonal shade
+            while (blendRatio <= 1.0f) {
+                val newColorArgb = ColorUtils.blendARGB(accentColor, targetColor, blendRatio)
+                if (ColorUtils.calculateContrast(newColorArgb, bgColor) >= minContrast) {
+                    Log.d("AlertSliderDialog", "Found contrast match at ratio $blendRatio: ${Integer.toHexString(newColorArgb)}")
+                    return newColorArgb
+                }
+                blendRatio += 0.05f
+            }
+
+            return targetColor
+        }
     }
 }
