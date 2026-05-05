@@ -24,11 +24,14 @@ import com.android.systemui.plugins.annotations.Requires
 class AlertSliderPlugin : OverlayPlugin {
     private lateinit var ambientConfig: AmbientDisplayConfiguration
     private lateinit var pluginContext: Context
-    private lateinit var sysuiContext: Context
     private lateinit var handler: NotificationHandler
     private val dialogLock = Any()
 
-    private data class NotificationInfo(val position: Int, val mode: Int, val invertColors: Boolean)
+    private data class NotificationInfo(
+        val position: Int,
+        val mode: Int,
+        val invertColors: Boolean,
+    )
 
     private val updateReceiver: BroadcastReceiver =
         object : BroadcastReceiver() {
@@ -42,8 +45,7 @@ class AlertSliderPlugin : OverlayPlugin {
                             val ringer =
                                 intent.getIntExtra("mode", NONE).takeIf { it != NONE } ?: return
 
-                            val invert =
-                                intent.getBooleanExtra("invertColors", false)
+                            val invert = intent.getBooleanExtra("invertColors", false)
 
                             handler
                                 .obtainMessage(
@@ -51,7 +53,7 @@ class AlertSliderPlugin : OverlayPlugin {
                                     NotificationInfo(
                                         intent.getIntExtra("position", KeyHandler.POSITION_BOTTOM),
                                         ringer,
-                                        invert
+                                        invert,
                                     ),
                                 )
                                 .sendToTarget()
@@ -64,9 +66,8 @@ class AlertSliderPlugin : OverlayPlugin {
 
     override fun onCreate(context: Context, plugin: Context) {
         ambientConfig = AmbientDisplayConfiguration(context)
-        sysuiContext = context
         pluginContext = plugin
-        handler = NotificationHandler(pluginContext, sysuiContext)
+        handler = NotificationHandler(plugin, context)
 
         val filter =
             IntentFilter().apply {
@@ -82,8 +83,10 @@ class AlertSliderPlugin : OverlayPlugin {
 
     override fun setup(statusBar: View?, navBar: View?) {}
 
-    private inner class NotificationHandler(var context: Context, var sysuiContext: Context) :
-        Handler(Looper.getMainLooper()) {
+    private inner class NotificationHandler(
+        var context: Context,
+        private var sysuiContext: Context,
+    ) : Handler(Looper.getMainLooper()) {
         private var dialog = AlertSliderDialog(context, sysuiContext)
         private var currDensity = context.resources.configuration.densityDpi
         private var currRotation = context.display.rotation
