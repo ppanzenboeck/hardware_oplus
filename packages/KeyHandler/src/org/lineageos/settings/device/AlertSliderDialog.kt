@@ -27,7 +27,6 @@ import android.view.animation.OvershootInterpolator
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.core.graphics.ColorUtils
 
 class AlertSliderDialog(private val context: Context, private val sysuiContext: Context) :
     Dialog(context, R.style.alert_slider_theme) {
@@ -118,11 +117,13 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
 
     @Synchronized
     fun setState(position: Int, ringerMode: Int, invertColors: Boolean) {
-        val delta = length * when (position) {
-            KeyHandler.POSITION_TOP -> -1
-            KeyHandler.POSITION_BOTTOM -> 1
-            else -> 0 // KeyHandler.POSITION_MIDDLE
-        }
+        val delta =
+            length *
+                when (position) {
+                    KeyHandler.POSITION_TOP -> -1
+                    KeyHandler.POSITION_BOTTOM -> 1
+                    else -> 0 // KeyHandler.POSITION_MIDDLE
+                }
 
         var endX = xPos
         var endY = yPos
@@ -132,12 +133,18 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
             animatePosition(endX, endY, position, ringerMode, invertColors)
         } else {
             applyUiMode(ringerMode, invertColors)
-            applyPositionAndBackground(endX, endY, position, invertColors)
+            applyPositionAndBackground(endX, endY, position)
         }
     }
 
     @Synchronized
-    private fun animatePosition(endX: Int, endY: Int, position: Int, ringerMode: Int, invertColors: Boolean) {
+    private fun animatePosition(
+        endX: Int,
+        endY: Int,
+        position: Int,
+        ringerMode: Int,
+        invertColors: Boolean,
+    ) {
         if (isAnimating) animator.cancel()
         animator = ValueAnimator()
         animator.duration = 100
@@ -146,62 +153,69 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
         window?.let {
             animator.setValues(
                 PropertyValuesHolder.ofInt("x", it.attributes.x, endX),
-                PropertyValuesHolder.ofInt("y", it.attributes.y, endY)
+                PropertyValuesHolder.ofInt("y", it.attributes.y, endY),
             )
         }
 
         animator.addUpdateListener { animation ->
             window?.let {
-                it.attributes = it.attributes.apply {
-                    x = animation.getAnimatedValue("x") as Int
-                    y = animation.getAnimatedValue("y") as Int
-                }
+                it.attributes =
+                    it.attributes.apply {
+                        x = animation.getAnimatedValue("x") as Int
+                        y = animation.getAnimatedValue("y") as Int
+                    }
             }
         }
 
-        animator.addListener(object : Animator.AnimatorListener {
-            override fun onAnimationStart(animation: Animator) {
-                isAnimating = true
-                applyUiMode(ringerMode, invertColors)
-            }
+        animator.addListener(
+            object : Animator.AnimatorListener {
+                override fun onAnimationStart(animation: Animator) {
+                    isAnimating = true
+                    applyUiMode(ringerMode, invertColors)
+                }
 
-            override fun onAnimationEnd(animation: Animator) {
-                applyPositionAndBackground(endX, endY, position, invertColors)
-                isAnimating = false
-            }
+                override fun onAnimationEnd(animation: Animator) {
+                    applyPositionAndBackground(endX, endY, position)
+                    isAnimating = false
+                }
 
-            override fun onAnimationCancel(animation: Animator) {}
-            override fun onAnimationRepeat(animation: Animator) {}
-        })
+                override fun onAnimationCancel(animation: Animator) {}
+
+                override fun onAnimationRepeat(animation: Animator) {}
+            }
+        )
         animator.start()
     }
 
-    private fun applyMonetColors(invertColors: Boolean) {
+    private fun applyUiTheme(invertColors: Boolean) {
         val currentUiMode = sysuiContext.resources.configuration.uiMode
-        val isDark = (currentUiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+        val isDark =
+            (currentUiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
                 android.content.res.Configuration.UI_MODE_NIGHT_YES
 
-        val bgResId = if (isDark) {
-            android.R.color.system_neutral1_800
-        } else {
-            android.R.color.system_neutral1_100
-        }
+        val bgResId =
+            if (isDark) {
+                android.R.color.system_neutral1_800
+            } else {
+                android.R.color.system_neutral1_100
+            }
 
-        val accentResId = if (isDark) {
-            android.R.color.system_accent1_100
-        } else {
-            android.R.color.system_accent1_500
-        }
+        val accentResId =
+            if (isDark) {
+                android.R.color.system_accent1_100
+            } else {
+                android.R.color.system_accent1_500
+            }
 
         val bgColor = sysuiContext.getColor(bgResId)
         val accentColor = sysuiContext.getColor(accentResId)
-        val finalBg = if (invertColors) accentColor else bgColor
-        val finalAccent = if (invertColors) bgColor else accentColor
-        val tonalColor = getTonalTextColor(finalBg, finalAccent)
 
-        frameView.backgroundTintList = ColorStateList.valueOf(finalBg)
-        iconView.imageTintList = ColorStateList.valueOf(tonalColor)
-        textView.setTextColor(tonalColor)
+        val activeFg = if (invertColors) bgColor else accentColor
+        val activeBg = if (invertColors) accentColor else bgColor
+
+        textView.setTextColor(activeFg)
+        iconView.imageTintList = ColorStateList.valueOf(activeFg)
+        frameView.backgroundTintList = ColorStateList.valueOf(activeBg)
     }
 
     private fun applyUiMode(ringerMode: Int, invertColors: Boolean) {
@@ -228,17 +242,17 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
                 else -> R.string.alert_slider_mode_none
             }
         )
-        applyMonetColors(invertColors)
+        applyUiTheme(invertColors)
     }
 
-    private fun applyPositionAndBackground(endX: Int, endY: Int, position: Int, invertColors: Boolean) {
+    private fun applyPositionAndBackground(endX: Int, endY: Int, position: Int) {
         window?.let {
-            it.attributes = it.attributes.apply {
-                x = endX
-                y = endY
-            }
+            it.attributes =
+                it.attributes.apply {
+                    x = endX
+                    y = endY
+                }
         }
-
         frameView.setBackgroundResource(backgroundFor(rotation, position, flip))
     }
 
@@ -281,28 +295,5 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
 
     companion object {
         private const val TAG = "AlertSliderDialog"
-        
-        private fun getTonalTextColor(bgColor: Int, accentColor: Int): Int {
-            val bgLum = ColorUtils.calculateLuminance(bgColor)
-            val isBgLight = bgLum > 0.5
-            val targetColor = if (isBgLight) android.graphics.Color.BLACK else android.graphics.Color.WHITE
-
-            val minContrast = 6.5
-            var blendRatio = 0.0f
-
-            if (ColorUtils.calculateContrast(accentColor, bgColor) >= minContrast) {
-                return accentColor
-            }
-
-            while (blendRatio <= 1.0f) {
-                val newColorArgb = ColorUtils.blendARGB(accentColor, targetColor, blendRatio)
-                if (ColorUtils.calculateContrast(newColorArgb, bgColor) >= minContrast) {
-                    return newColorArgb
-                }
-                blendRatio += 0.05f
-            }
-
-            return targetColor
-        }
     }
 }
