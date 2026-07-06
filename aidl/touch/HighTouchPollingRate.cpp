@@ -22,6 +22,7 @@ namespace {
 
 constexpr const char* kGameSwitchEnablePath = "/proc/touchpanel/game_switch_enable";
 constexpr const char* kTouchReportRateProperty = "sys.touch.report_rate";
+constexpr const char* kPersistTouchReportRateProperty = "persist.hbp.touch_report_rate";
 constexpr int kDefaultReportRateMode = 3;
 
 bool parseEnabled(const std::string& value) {
@@ -98,10 +99,14 @@ ndk::ScopedAStatus HighTouchPollingRate::setEnabled(bool enable) {
     if (mOplusTouch) {
         int aidl_return = 0;
         int supported = 0;
-        const int mode =
-                enable ? android::base::GetIntProperty(kTouchReportRateProperty,
-                                                       kDefaultReportRateMode)
-                       : 0;
+        int mode = 0;
+        if (enable) {
+            mode = android::base::GetIntProperty(kTouchReportRateProperty, 0);
+            if (mode == 0) {
+                mode = android::base::GetIntProperty(kPersistTouchReportRateProperty,
+                                                     kDefaultReportRateMode);
+            }
+        }
         mOplusTouch->isTouchNodeSupport(OplusTouchConstants::DEFAULT_TP_IC_ID,
                                         OplusTouchConstants::REPORT_RATE_MODE_NODE, &supported);
         if (supported == 1) {
