@@ -2,6 +2,7 @@ package android.hardware.camera2;
 
 import android.content.Context;
 import android.hardware.camera2.CaptureRequest;
+import android.hardware.camera2.CaptureResult;
 import android.hardware.camera2.IOplusCameraManager;
 import android.hardware.camera2.impl.CameraMetadataNative;
 import android.hardware.camera2.marshal.MarshalRegistry;
@@ -14,6 +15,7 @@ import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemProperties;
 import android.util.Log;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
@@ -101,7 +103,15 @@ public final class OplusCameraManager implements IOplusCameraManager {
         if (meta == null || !(meta instanceof CameraMetadataNative)) {
             return null;
         }
-        return new TotalCaptureResult(new CameraMetadataNative((CameraMetadataNative) meta), 0);
+        TotalCaptureResult result = new TotalCaptureResult((CameraMetadataNative) meta, 0);
+        try {
+            Field frameNumber = CaptureResult.class.getDeclaredField("mFrameNumber");
+            frameNumber.setAccessible(true);
+            frameNumber.setLong(result, frameId);
+        } catch (IllegalAccessException | NoSuchFieldException e) {
+            e.printStackTrace();
+        }
+        return result;
     }
 
     @Override // android.hardware.camera2.IOplusCameraManager
@@ -388,28 +398,18 @@ public final class OplusCameraManager implements IOplusCameraManager {
     }
 
     public static <T> T metaDataValueConvert(CaptureResult.Key<T> key, int i, byte[] bArr) {
-        final String TAG = "OplusCameraManager";
-        try {
-            T result = (T) MarshalRegistry.getMarshaler(key.getNativeKey().getTypeReference(), i)
+        if (key != null && bArr != null) {
+            return (T) MarshalRegistry.getMarshaler(key.getNativeKey().getTypeReference(), i)
                     .unmarshal(ByteBuffer.wrap(bArr).order(ByteOrder.nativeOrder()));
-            android.util.Log.d(TAG, "metaDataValueConvert OK");
-            return result;
-        } catch (Throwable t) {
-            android.util.Log.e(TAG, "metaDataValueConvert FAIL");
-            throw t; // rethrow the original exception
         }
+        return null;
     }
 
     public static int getMetadataTag(CaptureResult.Key key) {
-        final String TAG = "OplusCameraManager";
-        try {
-            int tag = key.getNativeKey().getTag();
-            android.util.Log.d(TAG, "getMetadataTag OK");
-            return tag;
-        } catch (Throwable t) {
-            android.util.Log.e(TAG, "getMetadataTag FAIL");
-            throw t;
+        if (key != null) {
+            return key.getNativeKey().getTag();
         }
+        return -1;
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -427,20 +427,20 @@ public final class OplusCameraManager implements IOplusCameraManager {
         private static final int PRE_OPEN_CAMERA = 10014;
         private static final int READ_OPLUS_CAMERA_SERVER_MEMORY = 10018;
         private static final int READ_OPLUS_HAL_MEMORY = 10017;
-        private static final int REGISTER_CAMERA_DEVICE_CALLBACK = 10019;
+        private static final int REGISTER_CAMERA_DEVICE_CALLBACK = 10021;
         private static final int SEND_OPLUS_EXT_CAM_CMD = 10015;
         private static final int SET_CALL_INFO = 10006;
         private static final int SET_CLIENT_INFO = 10005;
         private static final int SET_DEATH_RECIPIENT = 10002;
-        private static final int SET_DEATH_RECIPIENT_FOR_NAME = 10022;
+        private static final int SET_DEATH_RECIPIENT_FOR_NAME = 10024;
         private static final int SET_IS_CAMERA_UNIT_SESSION = 10016;
         private static final int SET_OMOJI_JSON = 10010;
         private static final int SET_PACKAGE_NAME = 10003;
         private static final int SET_RIO_CLIENT_INFO = 10007;
-        private static final int SET_SATELLITE_CALL_STATE = 10021;
+        private static final int SET_SATELLITE_CALL_STATE = 10023;
         private static final int SET_TORCH_INTENSITY = 10008;
         private static final String TAG = "OplusCameraManagerGlobal";
-        private static final int UNREGISTER_CAMERA_DEVICE_CALLBACK = 10020;
+        private static final int UNREGISTER_CAMERA_DEVICE_CALLBACK = 10022;
         private static final OplusCameraManagerGlobal gCameraManager = new OplusCameraManagerGlobal();
         public static final boolean sCameraServiceDisabled = SystemProperties.getBoolean("config.disable_cameraservice", false);
         private final boolean DEBUG = false;
@@ -583,7 +583,7 @@ public final class OplusCameraManager implements IOplusCameraManager {
                 data.writeInterfaceToken(DESCRIPTOR);
                 data.writeInt(cmd.ordinal());
                 data.writeIntArray(param);
-                this.mRemote.transact(10015, data, reply, 1);
+                this.mRemote.transact(10015, data, reply, 0);
                 reply.readException();
                 data.recycle();
                 reply.recycle();
@@ -708,7 +708,7 @@ public final class OplusCameraManager implements IOplusCameraManager {
             try {
                 data.writeInterfaceToken(DESCRIPTOR);
                 data.writeString(packageName);
-                this.mRemote.transact(10020, data, reply, 0);
+                this.mRemote.transact(10022, data, reply, 0);
                 reply.readException();
             } finally {
                 data.recycle();
@@ -728,7 +728,7 @@ public final class OplusCameraManager implements IOplusCameraManager {
                 data.writeInterfaceToken(DESCRIPTOR);
                 data.writeString(packageName);
                 data.writeStrongBinder(client);
-                this.mRemote.transact(10022, data, reply, 0);
+                this.mRemote.transact(10024, data, reply, 0);
                 reply.readException();
             } finally {
                 data.recycle();
@@ -748,7 +748,7 @@ public final class OplusCameraManager implements IOplusCameraManager {
                 data.writeInterfaceToken(DESCRIPTOR);
                 data.writeString(packageName);
                 data.writeInt(status);
-                remote.transact(10021, data, reply, 0);
+                remote.transact(10023, data, reply, 0);
                 reply.readException();
             } finally {
                 data.recycle();
