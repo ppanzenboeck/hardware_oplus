@@ -74,6 +74,10 @@ public class OplusMultiAppManager {
         return Collections.emptyList();
     }
 
+    public List<Integer> getMultiAppUids(String packageName) {
+        return Collections.emptyList();
+    }
+
     public String getMultiAppAlias(String pkgName) {
         return null;
     }
