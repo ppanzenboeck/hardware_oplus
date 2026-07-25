@@ -16,6 +16,7 @@ import android.os.UserHandle;
 import android.text.TextUtils;
 import android.util.Log;
 import android.util.Singleton;
+import com.oplus.ota.OplusSystemUpdateInfo;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -459,6 +460,14 @@ public class OplusPackageManager {
         } else {
             Log.e(TAG, "deletePackageDelegated failed because service has not been created");
         }
+    }
+
+    public OplusSystemUpdateInfo getSystemUpdateInfo() throws RemoteException {
+        if (getService() != null) {
+            return getService().getSystemUpdateInfo();
+        }
+        Log.e(TAG, "getSystemUpdateInfo failed because service has not been created");
+        return new OplusSystemUpdateInfo();
     }
 
     public boolean fixupAppData(String pkgName, int flags) throws RuntimeException {

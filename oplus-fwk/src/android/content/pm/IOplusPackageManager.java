@@ -10,6 +10,7 @@ import android.os.IInterface;
 import android.os.Parcel;
 import android.os.RemoteException;
 import android.os.UserHandle;
+import com.oplus.ota.OplusSystemUpdateInfo;
 import java.util.List;
 import java.util.Map;
 
@@ -46,6 +47,8 @@ public interface IOplusPackageManager extends IInterface {
     String getCustomizeDefaultApp(String str) throws RemoteException;
 
     List<String> getDetectAppList() throws RemoteException;
+
+    OplusSystemUpdateInfo getSystemUpdateInfo() throws RemoteException;
 
     List<String> getFreezedApplicationList(UserHandle userHandle) throws RemoteException;
 
@@ -258,6 +261,11 @@ public interface IOplusPackageManager extends IInterface {
         @Override // android.content.pm.IOplusPackageManager
         public boolean isCrossVersionUpdate() throws RemoteException {
             return false;
+        }
+
+        @Override // android.content.pm.IOplusPackageManager
+        public OplusSystemUpdateInfo getSystemUpdateInfo() throws RemoteException {
+            return new OplusSystemUpdateInfo();
         }
 
         @Override // android.content.pm.IOplusPackageManager
@@ -892,6 +900,9 @@ public interface IOplusPackageManager extends IInterface {
                             reply.writeNoException();
                             break;
                         case 37:
+                            OplusSystemUpdateInfo _result34 = getSystemUpdateInfo();
+                            reply.writeNoException();
+                            reply.writeTypedObject(_result34, 1);
                             break;
                         case 38:
                             String _arg025 = data.readString();
@@ -1639,6 +1650,22 @@ public interface IOplusPackageManager extends IInterface {
                     _data.writeStrongInterface(observer);
                     this.mRemote.transact(36, _data, _reply, 0);
                     _reply.readException();
+                } finally {
+                    _reply.recycle();
+                    _data.recycle();
+                }
+            }
+
+            @Override // android.content.pm.IOplusPackageManager
+            public OplusSystemUpdateInfo getSystemUpdateInfo() throws RemoteException {
+                Parcel _data = Parcel.obtain();
+                Parcel _reply = Parcel.obtain();
+                try {
+                    _data.writeInterfaceToken(IOplusPackageManager.DESCRIPTOR);
+                    this.mRemote.transact(37, _data, _reply, 0);
+                    _reply.readException();
+                    OplusSystemUpdateInfo _result = (OplusSystemUpdateInfo) _reply.readTypedObject(OplusSystemUpdateInfo.CREATOR);
+                    return _result;
                 } finally {
                     _reply.recycle();
                     _data.recycle();
