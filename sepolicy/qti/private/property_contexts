@@ -49,6 +49,7 @@ persist.sys.oplus.gps.    u:object_r:exported_system_prop:s0
 aec.custom.debug.               u:object_r:exported_system_prop:s0
 persist.sys.assert.panic        u:object_r:exported_system_prop:s0
 persist.sys.camera.log.scene    u:object_r:exported_system_prop:s0
+persist.sys.haptic_profile      u:object_r:exported_system_prop:s0
 persist.sys.debuglog.config     u:object_r:exported_system_prop:s0
 persist.sys.log.ae              u:object_r:exported_system_prop:s0
 persist.sys.log.af              u:object_r:exported_system_prop:s0
