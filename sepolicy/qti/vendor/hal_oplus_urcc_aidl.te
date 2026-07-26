@@ -23,10 +23,29 @@ allow hal_oplus_urcc_aidl vendor_sysfs_cb:dir search;
 allow hal_oplus_urcc_aidl vendor_sysfs_devfreq:dir search;
 
 allow hal_oplus_urcc_aidl cgroup:file r_file_perms;
+rw_dir_file(hal_oplus_urcc_aidl, proc_sched)
+r_dir_file(hal_oplus_urcc_aidl, sysfs_thermal)
+r_dir_file(hal_oplus_urcc_aidl, vendor_proc_game_opt)
+r_dir_file(hal_oplus_urcc_aidl, vendor_proc_oplus_frame_boost)
+r_dir_file(hal_oplus_urcc_aidl, vendor_proc_oplus_scheduler)
+r_dir_file(hal_oplus_urcc_aidl, vendor_sysfs_cb)
+r_dir_file(hal_oplus_urcc_aidl, vendor_sysfs_kgsl)
+r_dir_file(hal_oplus_urcc_aidl, vendor_sysfs_kgsl_gpuclk)
+allow hal_oplus_urcc_aidl sysfs:file r_file_perms;
 allow hal_oplus_urcc_aidl sysfs_devices_system_cpu:file w_file_perms;
+allow hal_oplus_urcc_aidl sysfs_thermal:file w_file_perms;
+allow hal_oplus_urcc_aidl vendor_latency_device:chr_file r_file_perms;
+allow hal_oplus_urcc_aidl vendor_proc_game_opt:file w_file_perms;
+allow hal_oplus_urcc_aidl vendor_proc_oplus_frame_boost:file w_file_perms;
+allow hal_oplus_urcc_aidl vendor_proc_oplus_scheduler:file w_file_perms;
 allow hal_oplus_urcc_aidl sysfs_transparent_hugepage:file w_file_perms;
 allow hal_oplus_urcc_aidl vendor_sysfs_cb:file w_file_perms;
+allow hal_oplus_urcc_aidl vendor_sysfs_kgsl:file w_file_perms;
 allow hal_oplus_urcc_aidl vendor_sysfs_msm_perf:file rw_file_perms;
+allow hal_oplus_urcc_aidl vendor_uah_data_file:dir create_dir_perms;
+allow hal_oplus_urcc_aidl vendor_uah_data_file:file create_file_perms;
+
+dontaudit hal_oplus_urcc_aidl default_prop:file read;
 
 # Access to /proc/sys/walt/ nodes
 allow hal_oplus_urcc_aidl proc:file rw_file_perms;

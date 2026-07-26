@@ -191,6 +191,9 @@
 /dev/tp_misc(/.*)?                                                         u:object_r:oplus_touchdaemon_device:s0
 /dev/tp_misc1                                                              u:object_r:oplus_touchdaemon_device:s0
 
+# UAH
+/data/vendor/uah(/.*)?    u:object_r:vendor_uah_data_file:s0
+
 # Ultrasound
 /dev/audio_ultrasound     u:object_r:ultrasound_device:s0
 /dev/sensor_ultrasound    u:object_r:ultrasound_device:s0
