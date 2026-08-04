@@ -10,13 +10,25 @@
 #include "TouchscreenGesture.h"
 
 #include <android-base/logging.h>
+#include <android-base/properties.h>
 #include <android/binder_manager.h>
 #include <android/binder_process.h>
+
+#include <chrono>
+#include <thread>
 
 using aidl::vendor::lineage::touch::GloveMode;
 using aidl::vendor::lineage::touch::HighTouchPollingRate;
 using aidl::vendor::lineage::touch::TouchscreenGesture;
 using aidl::vendor::oplus::hardware::touch::IOplusTouch;
+
+namespace {
+
+constexpr char kTouchReportRateProperty[] = "sys.touch.report_rate";
+constexpr char kPersistTouchReportRateProperty[] = "persist.hbp.touch_report_rate";
+constexpr char kBootCompletedProperty[] = "sys.boot_completed";
+
+}  // namespace
 
 int main() {
     ABinderProcess_setThreadPoolMaxThreadCount(0);
@@ -46,6 +58,24 @@ int main() {
         const binder_status_t status =
                 AServiceManager_addService(htpr->asBinder().get(), instance.c_str());
         CHECK_EQ(status, STATUS_OK) << "Failed to add service " << instance << " " << status;
+
+        std::thread([htpr] {
+            if (!android::base::WaitForProperty(kBootCompletedProperty, "1",
+                                                std::chrono::seconds(120))) {
+                LOG(ERROR) << "Timed out waiting to restore the touch report rate";
+                return;
+            }
+
+            const int mode = android::base::GetIntProperty(
+                    kPersistTouchReportRateProperty,
+                    android::base::GetIntProperty(kTouchReportRateProperty, 0));
+            const ndk::ScopedAStatus restoreStatus = htpr->setEnabled(mode != 0);
+            if (!restoreStatus.isOk()) {
+                LOG(ERROR) << "Failed to restore touch report rate mode " << mode;
+            } else {
+                LOG(INFO) << "Restored touch report rate mode " << mode;
+            }
+        }).detach();
     }
 
     if (tg) {
