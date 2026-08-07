@@ -86,6 +86,7 @@
 /dev/pn553    u:object_r:nfc_device:s0
 
 # NVRAM
+/(odm|vendor/odm)/bin/nvram_diag                              u:object_r:nvram_exec:s0
 /(odm|vendor/odm)/bin/nvram_qmi                               u:object_r:nvram_exec:s0
 /(odm|vendor/odm)/bin/nvram_server                            u:object_r:nvram_exec:s0
 /dev/block/platform/soc/1d84000\.ufshc/by-name/nonmodemst1    u:object_r:nvram_device:s0
