@@ -130,6 +130,15 @@ public class OplusActivityManager extends OplusBaseActivityManager implements IO
     public void addBackgroundRestrictedInfo(String callerPkg, java.util.List<String> targetPkgList) throws android.os.RemoteException {
     }
 
+    /**
+     * Compatibility API used by Oplus applications to test whether one of their processes is
+     * alive. Process enumeration is restricted on modern Android, so return an empty result when
+     * the Oplus activity-manager extension is unavailable.
+     */
+    public List<ActivityManager.RunningAppProcessInfo> getRunningAppProcesses() {
+        return new java.util.ArrayList<>();
+    }
+
     @Override
     public boolean registerTaskInfoChangeListener(
             OplusTaskInfoChangeListener listener, int type, int displayId) throws RemoteException {

@@ -8,4 +8,14 @@ public class OplusBluetoothDevice {
     public int getOplusBluetoothClass() {
         return 0;
     }
+
+    /**
+     * Reports vendor audio-delay parameters for a remote device.
+     *
+     * <p>The corresponding Oplus Bluetooth service extension is not part of AOSP. Expose the API
+     * so Oplus clients can fall back cleanly when the service is unavailable.</p>
+     */
+    public boolean setRemoteDelayReport(String[] configKeys, int[] configValues) {
+        return false;
+    }
 }
