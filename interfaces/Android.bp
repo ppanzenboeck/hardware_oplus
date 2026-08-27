@@ -315,10 +315,16 @@ aidl_interface {
 
     backend: {
         cpp: {
-            enabled: true,
+            enabled: false,
+        },
+        ndk: {
+            enabled: false,
         },
         java: {
             enabled: true,
+        },
+        rust: {
+            enabled: false,
         },
     },
     versions_with_info: [
@@ -355,10 +361,16 @@ aidl_interface {
 
     backend: {
         cpp: {
-            enabled: true,
+            enabled: false,
+        },
+        ndk: {
+            enabled: false,
         },
         java: {
             enabled: true,
+        },
+        rust: {
+            enabled: false,
         },
     },
     imports: [
