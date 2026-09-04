@@ -13,21 +13,25 @@ import android.animation.PropertyValuesHolder
 import android.animation.ValueAnimator
 import android.app.Dialog
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.TransitionDrawable
 import android.media.AudioManager
 import android.view.Gravity
 import android.view.Surface
 import android.view.ViewGroup
 import android.view.Window
 import android.view.WindowManager
+import android.view.animation.AccelerateInterpolator
+import android.view.animation.DecelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 
-class AlertSliderDialog(private val context: Context) :
+class AlertSliderDialog(private val context: Context, private val sysuiContext: Context) :
     Dialog(context, R.style.alert_slider_theme) {
     private val dialogView by lazy { findViewById<LinearLayout>(R.id.alert_slider_dialog)!! }
     private val frameView by lazy { findViewById<ViewGroup>(R.id.alert_slider_view)!! }
@@ -115,7 +119,7 @@ class AlertSliderDialog(private val context: Context) :
     }
 
     @Synchronized
-    fun setState(position: Int, ringerMode: Int) {
+    fun setState(position: Int, ringerMode: Int, invertColors: Boolean) {
         val delta =
             length *
                 when (position) {
@@ -129,15 +133,21 @@ class AlertSliderDialog(private val context: Context) :
         if (isLandscape) endX += delta else endY += delta
 
         if (isShowing) {
-            animatePosition(endX, endY, position, ringerMode)
+            animatePosition(endX, endY, position, ringerMode, invertColors)
         } else {
-            applyUiMode(ringerMode)
+            applyUiMode(ringerMode, invertColors)
             applyPositionAndBackground(endX, endY, position)
         }
     }
 
     @Synchronized
-    private fun animatePosition(endX: Int, endY: Int, position: Int, ringerMode: Int) {
+    private fun animatePosition(
+        endX: Int,
+        endY: Int,
+        position: Int,
+        ringerMode: Int,
+        invertColors: Boolean,
+    ) {
         if (isAnimating) animator.cancel()
         animator = ValueAnimator()
         animator.duration = 100
@@ -164,7 +174,20 @@ class AlertSliderDialog(private val context: Context) :
             object : Animator.AnimatorListener {
                 override fun onAnimationStart(animation: Animator) {
                     isAnimating = true
-                    applyUiMode(ringerMode)
+                    applyUiMode(ringerMode, invertColors)
+                    val transition =
+                        TransitionDrawable(
+                            arrayOf(
+                                frameView.background,
+                                context.resources.getDrawable(
+                                    backgroundFor(rotation, position, flip),
+                                    null,
+                                ),
+                            )
+                        )
+                    frameView.background = transition
+                    transition.setCrossFadeEnabled(true)
+                    transition.startTransition(30)
                 }
 
                 override fun onAnimationEnd(animation: Animator) {
@@ -180,7 +203,38 @@ class AlertSliderDialog(private val context: Context) :
         animator.start()
     }
 
-    private fun applyUiMode(ringerMode: Int) {
+    private fun applyUiTheme(invertColors: Boolean) {
+        val currentUiMode = sysuiContext.resources.configuration.uiMode
+        val isDark =
+            (currentUiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+                android.content.res.Configuration.UI_MODE_NIGHT_YES
+
+        val bgResId =
+            if (isDark) {
+                android.R.color.system_neutral1_800
+            } else {
+                android.R.color.system_neutral1_100
+            }
+
+        val accentResId =
+            if (isDark) {
+                android.R.color.system_accent1_100
+            } else {
+                android.R.color.system_accent1_500
+            }
+
+        val bgColor = sysuiContext.getColor(bgResId)
+        val accentColor = sysuiContext.getColor(accentResId)
+
+        val activeFg = if (invertColors) bgColor else accentColor
+        val activeBg = if (invertColors) accentColor else bgColor
+
+        textView.setTextColor(activeFg)
+        iconView.imageTintList = ColorStateList.valueOf(activeFg)
+        frameView.backgroundTintList = ColorStateList.valueOf(activeBg)
+    }
+
+    private fun applyUiMode(ringerMode: Int, invertColors: Boolean) {
         iconView.setImageResource(
             when (ringerMode) {
                 AudioManager.RINGER_MODE_SILENT -> R.drawable.ic_volume_ringer_mute
@@ -189,6 +243,8 @@ class AlertSliderDialog(private val context: Context) :
                 KeyHandler.ZEN_PRIORITY_ONLY -> R.drawable.ic_notifications_alert
                 KeyHandler.ZEN_TOTAL_SILENCE -> R.drawable.ic_notifications_silence
                 KeyHandler.ZEN_ALARMS_ONLY -> R.drawable.ic_alarm
+                KeyHandler.TORCH_ON -> R.drawable.ic_torch_on
+                KeyHandler.TORCH_OFF -> R.drawable.ic_torch_off
                 else -> R.drawable.ic_info
             }
         )
@@ -201,10 +257,12 @@ class AlertSliderDialog(private val context: Context) :
                 KeyHandler.ZEN_PRIORITY_ONLY -> R.string.alert_slider_mode_dnd_priority_only
                 KeyHandler.ZEN_TOTAL_SILENCE -> R.string.alert_slider_mode_dnd_total_silence
                 KeyHandler.ZEN_ALARMS_ONLY -> R.string.alert_slider_mode_dnd_alarms_only
+                KeyHandler.TORCH_ON -> R.string.alert_slider_mode_torch_on
+                KeyHandler.TORCH_OFF -> R.string.alert_slider_mode_torch_off
                 else -> R.string.alert_slider_mode_none
             }
         )
-        textView.setTextColor(context.getColor(R.color.alert_slider_text_color))
+        applyUiTheme(invertColors)
     }
 
     private fun applyPositionAndBackground(endX: Int, endY: Int, position: Int) {
@@ -253,6 +311,27 @@ class AlertSliderDialog(private val context: Context) :
                 }
             else -> base(position) // ROTATION_0 / ROTATION_180
         }
+    }
+
+    override fun show() {
+        dialogView.alpha = 0f
+        super.show()
+        dialogView
+            .animate()
+            .alpha(1f)
+            .setDuration(200)
+            .setInterpolator(DecelerateInterpolator())
+            .start()
+    }
+
+    override fun dismiss() {
+        dialogView
+            .animate()
+            .alpha(0f)
+            .setDuration(200)
+            .setInterpolator(AccelerateInterpolator())
+            .withEndAction { super.dismiss() }
+            .start()
     }
 
     companion object {
