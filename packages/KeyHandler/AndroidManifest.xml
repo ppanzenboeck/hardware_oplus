@@ -23,6 +23,7 @@
 
     <protected-broadcast android:name="com.android.systemui.doze.pulse" />
     <protected-broadcast android:name="org.lineageos.settings.UPDATE_SETTINGS" />
+    <protected-broadcast android:name="org.lineageos.settings.CYCLE_RINGER_MODE" />
 
     <application
         android:icon="@mipmap/ic_launcher"
@@ -47,7 +48,7 @@
         <activity
             android:name=".ButtonSettingsActivity"
             android:label="@string/button_panel_title"
-            android:exported="false">
+            android:exported="true">
             <intent-filter>
                 <action android:name="org.lineageos.settings.device.ADDITIONAL_BUTTONS_SETTINGS" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -56,7 +57,7 @@
 
         <service
             android:name=".AlertSliderPlugin"
-            android:exported="false">
+            android:exported="true">
             <intent-filter>
                 <action android:name="com.android.systemui.action.PLUGIN_OVERLAY" />
             </intent-filter>
