@@ -871,51 +871,15 @@ cc_library_shared {
 }
 
 cc_library_shared {
-    name: "vendor.oplus.hardware.cammidasservice-V1-ndk_platform",
-    defaults: ["vendor.oplus.hardware.ndk_platform_shim_defaults"],
-    whole_static_libs: ["vendor.oplus.hardware.cammidasservice-V1-ndk"],
-}
-
-cc_library_shared {
-    name: "vendor.oplus.hardware.commondcs-V1-ndk_platform",
-    defaults: ["vendor.oplus.hardware.ndk_platform_shim_defaults"],
-    whole_static_libs: ["vendor.oplus.hardware.commondcs-V1-ndk"],
-}
-
-cc_library_shared {
     name: "vendor.oplus.hardware.display.MixLut3D-V1-ndk_platform",
     defaults: ["vendor.oplus.hardware.ndk_platform_shim_defaults"],
     whole_static_libs: ["vendor.oplus.hardware.display.MixLut3D-V1-ndk"],
 }
 
 cc_library_shared {
-    name: "vendor.oplus.hardware.olc2-V1-ndk_platform",
-    defaults: ["vendor.oplus.hardware.ndk_platform_shim_defaults"],
-    whole_static_libs: ["vendor.oplus.hardware.olc2-V1-ndk"],
-}
-
-cc_library_shared {
-    name: "vendor.oplus.hardware.osense.client-V1-ndk_platform",
-    defaults: ["vendor.oplus.hardware.ndk_platform_shim_defaults"],
-    whole_static_libs: ["vendor.oplus.hardware.osense.client-V1-ndk"],
-}
-
-cc_library_shared {
-    name: "vendor.oplus.hardware.performance-V1-ndk_platform",
-    defaults: ["vendor.oplus.hardware.ndk_platform_shim_defaults"],
-    whole_static_libs: ["vendor.oplus.hardware.performance-V1-ndk"],
-}
-
-cc_library_shared {
     name: "vendor.oplus.hardware.pogo_keyboard-V1-ndk_platform",
     defaults: ["vendor.oplus.hardware.ndk_platform_shim_defaults"],
     whole_static_libs: ["vendor.oplus.hardware.pogo_keyboard-V1-ndk"],
-}
-
-cc_library_shared {
-    name: "vendor.oplus.hardware.radio-V2-ndk_platform",
-    defaults: ["vendor.oplus.hardware.ndk_platform_shim_defaults"],
-    whole_static_libs: ["vendor.oplus.hardware.radio-V2-ndk"],
 }
 
 cc_library_shared {
