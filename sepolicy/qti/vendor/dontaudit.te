@@ -1,1 +1,1 @@
-dontaudit platform_app mnt_vendor_file:dir search;
+dontaudit { platform_app platform_app_36 } mnt_vendor_file:dir search;
