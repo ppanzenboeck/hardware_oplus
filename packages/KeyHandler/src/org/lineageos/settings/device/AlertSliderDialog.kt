@@ -23,6 +23,7 @@ import android.graphics.drawable.TransitionDrawable
 import android.media.AudioManager
 import android.view.Gravity
 import android.view.Surface
+import android.view.View
 import android.view.ViewGroup
 import android.view.Window
 import android.view.WindowManager
@@ -51,6 +52,20 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
 
     private var isAnimating = false
     private var animator = ValueAnimator()
+
+    // Latest applied state, cached so the blurred background can be re-applied
+    // once the dialog window is actually attached to its ViewRootImpl. The
+    // initial setState() runs before show()/attach (the plugin sends
+    // MSG_DIALOG_UPDATE before MSG_DIALOG_SHOW), so viewRootImpl is still null
+    // at that point and the blur silently falls back to the plain surface.
+    private var lastPosition = KeyHandler.POSITION_MIDDLE
+    private var lastRingerMode = NONE
+    private var lastInvertColors = false
+    private var lastAttached = false
+    // Resolved final window position (incl. the top/bottom delta), cached so the
+    // blurred background can be re-applied without losing the pill's offset.
+    private var lastEndX = 0
+    private var lastEndY = 0
 
     init {
         window?.let {
@@ -119,6 +134,40 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
                     y = yPos
                 }
         }
+
+        // Re-apply the frosted-glass blur as soon as the dialog window is
+        // attached. The initial setState() runs before show()/attach (the
+        // plugin sends MSG_DIALOG_UPDATE before MSG_DIALOG_SHOW), so
+        // viewRootImpl is null then and the blur silently falls back to the
+        // plain surface. The window's addView() inside super.show() fires
+        // onViewAttachedToWindow, so the first visible frame is already
+        // blurred; show() below also re-applies as a belt-and-suspenders guard
+        // against any attach path this listener misses.
+        frameView.addOnAttachStateChangeListener(
+            object : View.OnAttachStateChangeListener {
+                override fun onViewAttachedToWindow(view: View) {
+                    if (!lastAttached) {
+                        applyBlurredBackground()
+                        lastAttached = true
+                    }
+                }
+
+                override fun onViewDetachedFromWindow(view: View) {
+                    lastAttached = false
+                }
+            }
+        )
+    }
+
+    /**
+     * Re-applies the UI mode and the frosted-glass blurred background using
+     * the last known state. Safe to call repeatedly; used to guarantee the
+     * [BackgroundBlurDrawable] is attached to the surface before the first
+     * frame is drawn, regardless of when the dialog window was attached.
+     */
+    private fun applyBlurredBackground() {
+        applyUiMode(lastRingerMode, lastInvertColors)
+        applyPositionAndBackground(lastEndX, lastEndY, lastPosition)
     }
 
     @Synchronized
@@ -141,6 +190,11 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
             applyUiMode(ringerMode, invertColors)
             applyPositionAndBackground(endX, endY, position)
         }
+        lastPosition = position
+        lastRingerMode = ringerMode
+        lastInvertColors = invertColors
+        lastEndX = endX
+        lastEndY = endY
     }
 
     @Synchronized
@@ -302,6 +356,12 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
         blurDrawable.setBlurRadius(blurRadius)
         blurDrawable.setCornerRadius(cornerRadius)
 
+        // The pill surface is tinted to a system neutral color via
+        // applyUiTheme() at 100% opacity, which would fully occlude the
+        // frosted-glass blur underneath. Lower the surface alpha so the blur
+        // is clearly visible through the pill while keeping the tint visible.
+        surface.setAlpha(PILL_TINT_ALPHA)
+
         return LayerDrawable(arrayOf<Drawable>(blurDrawable, surface))
     }
 
@@ -345,6 +405,11 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
     override fun show() {
         dialogView.alpha = 0f
         super.show()
+        // The initial setState() ran before the window was attached, so
+        // viewRootImpl was null and the blur fell back to the plain surface.
+        // Now that super.show() has attached the window, re-apply the blurred
+        // background so the first visible frame is frosted-glass.
+        applyBlurredBackground()
         dialogView
             .animate()
             .alpha(1f)
@@ -365,5 +430,13 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
 
     companion object {
         private const val TAG = "AlertSliderDialog"
+
+        // Opacity (0-255) applied to the pill surface tint when the blur is
+        // active. ~80% keeps the tint visible while letting the frosted-glass
+        // blur show through clearly.
+        private const val PILL_TINT_ALPHA = 204
+
+        // Ringer mode sentinel (mirrors AlertSliderPlugin.NONE).
+        private const val NONE = -1
     }
 }
