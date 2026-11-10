@@ -17,6 +17,8 @@ import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.Drawable
+import android.graphics.drawable.LayerDrawable
 import android.graphics.drawable.TransitionDrawable
 import android.media.AudioManager
 import android.view.Gravity
@@ -30,6 +32,7 @@ import android.view.animation.OvershootInterpolator
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.android.internal.graphics.drawable.BackgroundBlurDrawable
 
 class AlertSliderDialog(private val context: Context, private val sysuiContext: Context) :
     Dialog(context, R.style.alert_slider_theme) {
@@ -179,9 +182,11 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
                         TransitionDrawable(
                             arrayOf(
                                 frameView.background,
-                                context.resources.getDrawable(
-                                    backgroundFor(rotation, position, flip),
-                                    null,
+                                buildPillBackground(
+                                    context.resources.getDrawable(
+                                        backgroundFor(rotation, position, flip),
+                                        null,
+                                    ),
                                 ),
                             )
                         )
@@ -273,7 +278,31 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
                     y = endY
                 }
         }
-        frameView.setBackgroundResource(backgroundFor(rotation, position, flip))
+        frameView.background =
+            buildPillBackground(
+                context.resources.getDrawable(backgroundFor(rotation, position, flip), null),
+            )
+    }
+
+    /**
+     * Wraps the pill surface with a [BackgroundBlurDrawable], mirroring SystemUI's volume dialog.
+     * The surface (a rounded shape) sits on top of the blur; the view-level
+     * [android.view.View.backgroundTintList] still applies to the surface via [LayerDrawable] tint
+     * propagation. The blur uses the pill's corner radius so it stays inset from the surface
+     * silhouette and never pokes out of the directional corners.
+     */
+    private fun buildPillBackground(surface: Drawable): Drawable {
+        val viewRoot = frameView.viewRootImpl ?: return surface
+        val blurRadius =
+            context.resources.getDimensionPixelSize(R.dimen.alert_slider_blur_radius)
+        val cornerRadius =
+            context.resources.getDimension(R.dimen.alert_slider_corner_radius)
+
+        val blurDrawable = viewRoot.createBackgroundBlurDrawable()
+        blurDrawable.setBlurRadius(blurRadius)
+        blurDrawable.setCornerRadius(cornerRadius)
+
+        return LayerDrawable(arrayOf<Drawable>(blurDrawable, surface))
     }
 
     private fun backgroundFor(rotation: Int, position: Int, flip: Boolean): Int {
