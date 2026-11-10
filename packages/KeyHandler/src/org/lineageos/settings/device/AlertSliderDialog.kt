@@ -28,7 +28,6 @@ import android.view.ViewGroup
 import android.view.Window
 import android.view.WindowManager
 import android.view.animation.AccelerateInterpolator
-import android.view.animation.DecelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -402,6 +401,14 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
         }
     }
 
+    /**
+     * Whether the dialog is anchored to the LEFT edge of the screen.
+     * When [flip] is true the dialog sits on the left; otherwise it sits on the right.
+     * This mirrors SystemUI's [VolumeDialogViewBinder] logic that derives isLeft
+     * from the window's absolute gravity.
+     */
+    private val isOnLeft: Boolean get() = flip
+
     override fun show() {
         dialogView.alpha = 0f
         super.show()
@@ -410,21 +417,39 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
         // Now that super.show() has attached the window, re-apply the blurred
         // background so the first visible frame is frosted-glass.
         applyBlurredBackground()
-        dialogView
-            .animate()
-            .alpha(1f)
-            .setDuration(200)
-            .setInterpolator(DecelerateInterpolator())
-            .start()
+        // Defer to the next frame so dialogView has a valid measured width,
+        // then slide in from the screen edge (matching SystemUI volume dialog).
+        dialogView.post {
+            val slideDistance = dialogView.width.toFloat().takeIf { it > 0f }
+                ?: context.resources.getDimension(R.dimen.alert_slider_dialog_width)
+            dialogView.translationX = if (isOnLeft) -slideDistance else slideDistance
+            // Animate in from the screen edge: slides along X from ±width to 0
+            // while fading in. Overshoot gives the spring-like bounce of the
+            // volume dialog's SpringAnimation.
+            dialogView
+                .animate()
+                .alpha(1f)
+                .translationX(0f)
+                .setDuration(250)
+                .setInterpolator(OvershootInterpolator())
+                .start()
+        }
     }
 
     override fun dismiss() {
+        val slideDistance = dialogView.width.toFloat().takeIf { it > 0f }
+            ?: context.resources.getDimension(R.dimen.alert_slider_dialog_width)
+        // Slide out toward the screen edge it came from (matching SystemUI volume dialog).
         dialogView
             .animate()
             .alpha(0f)
+            .translationX(if (isOnLeft) -slideDistance else slideDistance)
             .setDuration(200)
             .setInterpolator(AccelerateInterpolator())
-            .withEndAction { super.dismiss() }
+            .withEndAction {
+                dialogView.translationX = 0f
+                super.dismiss()
+            }
             .start()
     }
 
