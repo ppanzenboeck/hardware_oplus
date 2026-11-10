@@ -17,10 +17,12 @@ import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.ColorDrawable
-import android.graphics.drawable.TransitionDrawable
+import android.graphics.drawable.Drawable
+import android.graphics.drawable.LayerDrawable
 import android.media.AudioManager
 import android.view.Gravity
 import android.view.Surface
+import android.view.View
 import android.view.ViewGroup
 import android.view.Window
 import android.view.WindowManager
@@ -30,6 +32,7 @@ import android.view.animation.OvershootInterpolator
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.android.internal.graphics.drawable.BackgroundBlurDrawable
 
 class AlertSliderDialog(private val context: Context, private val sysuiContext: Context) :
     Dialog(context, R.style.alert_slider_theme) {
@@ -48,6 +51,17 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
 
     private var isAnimating = false
     private var animator = ValueAnimator()
+
+    private var blurDrawable: BackgroundBlurDrawable? = null
+    private val windowManager by lazy { context.getSystemService(WindowManager::class.java) }
+    private val isBlurSupported: Boolean
+        get() = windowManager?.isCrossWindowBlurEnabled == true
+    private val blurRadius: Int by lazy {
+        context.resources.getDimensionPixelSize(R.dimen.alert_slider_dialog_blur_radius)
+    }
+
+    private var lastPosition: Int = KeyHandler.POSITION_MIDDLE
+    private var lastInvertColors: Boolean = false
 
     init {
         window?.let {
@@ -116,10 +130,23 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
                     y = yPos
                 }
         }
+
+        dialogView.addOnAttachStateChangeListener(
+            object : View.OnAttachStateChangeListener {
+                override fun onViewAttachedToWindow(v: View) {
+                    applyBackground(lastPosition)
+                    applyUiTheme(lastInvertColors)
+                }
+                override fun onViewDetachedFromWindow(v: View) {}
+            }
+        )
     }
 
     @Synchronized
     fun setState(position: Int, ringerMode: Int, invertColors: Boolean) {
+        lastPosition = position
+        lastInvertColors = invertColors
+
         val delta =
             length *
                 when (position) {
@@ -175,19 +202,8 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
                 override fun onAnimationStart(animation: Animator) {
                     isAnimating = true
                     applyUiMode(ringerMode, invertColors)
-                    val transition =
-                        TransitionDrawable(
-                            arrayOf(
-                                frameView.background,
-                                context.resources.getDrawable(
-                                    backgroundFor(rotation, position, flip),
-                                    null,
-                                ),
-                            )
-                        )
-                    frameView.background = transition
-                    transition.setCrossFadeEnabled(true)
-                    transition.startTransition(30)
+                    applyBackground(position)
+                    applyUiTheme(invertColors)
                 }
 
                 override fun onAnimationEnd(animation: Animator) {
@@ -201,6 +217,64 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
             }
         )
         animator.start()
+    }
+
+    private fun updateBlurCorners(position: Int) {
+        val blur = blurDrawable ?: return
+        val r = context.resources.getDimension(R.dimen.alert_slider_corner_radius)
+        val d = context.resources.getDimension(R.dimen.alert_slider_directional_radius)
+
+        var tl = r
+        var tr = r
+        var bl = r
+        var br = r
+
+        when (rotation) {
+            Surface.ROTATION_90 -> {
+                if (position == KeyHandler.POSITION_TOP) {
+                    if (flip) tr = d else tl = d
+                } else if (position == KeyHandler.POSITION_BOTTOM) {
+                    if (flip) br = d else bl = d
+                }
+            }
+            Surface.ROTATION_270 -> {
+                if (position == KeyHandler.POSITION_TOP) {
+                    if (flip) tl = d else tr = d
+                } else if (position == KeyHandler.POSITION_BOTTOM) {
+                    if (flip) bl = d else br = d
+                }
+            }
+            else -> {
+                if (position == KeyHandler.POSITION_TOP) {
+                    if (flip) bl = d else br = d
+                } else if (position == KeyHandler.POSITION_BOTTOM) {
+                    if (flip) tl = d else tr = d
+                }
+            }
+        }
+        blur.setCornerRadius(tl, tr, bl, br)
+    }
+
+    private fun applyBackground(position: Int) {
+        val shape =
+            context.resources.getDrawable(
+                backgroundFor(rotation, position, flip),
+                context.theme,
+            ).mutate()
+
+        if (isBlurSupported) {
+            if (blurDrawable == null) {
+                blurDrawable = dialogView.viewRootImpl?.createBackgroundBlurDrawable()
+            }
+            blurDrawable?.let { blur ->
+                blur.setBlurRadius(blurRadius)
+                updateBlurCorners(position)
+                frameView.background = LayerDrawable(arrayOf<Drawable>(blur, shape))
+                return
+            }
+        }
+        blurDrawable?.setBlurRadius(0)
+        frameView.background = shape
     }
 
     private fun applyUiTheme(invertColors: Boolean) {
@@ -231,7 +305,21 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
 
         textView.setTextColor(activeFg)
         iconView.imageTintList = ColorStateList.valueOf(activeFg)
-        frameView.backgroundTintList = ColorStateList.valueOf(activeBg)
+
+        val bgWithAlpha =
+            if (isBlurSupported && blurDrawable != null) {
+                (activeBg and 0x00FFFFFF) or (0xC0 shl 24)
+            } else {
+                activeBg
+            }
+
+        val currentBg = frameView.background
+        if (currentBg is LayerDrawable) {
+            val shape = currentBg.getDrawable(1)
+            shape.setTintList(ColorStateList.valueOf(bgWithAlpha))
+        } else if (currentBg != null) {
+            currentBg.setTintList(ColorStateList.valueOf(bgWithAlpha))
+        }
     }
 
     private fun applyUiMode(ringerMode: Int, invertColors: Boolean) {
@@ -273,7 +361,8 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
                     y = endY
                 }
         }
-        frameView.setBackgroundResource(backgroundFor(rotation, position, flip))
+        applyBackground(position)
+        applyUiTheme(lastInvertColors)
     }
 
     private fun backgroundFor(rotation: Int, position: Int, flip: Boolean): Int {
@@ -316,6 +405,8 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
     override fun show() {
         dialogView.alpha = 0f
         super.show()
+        applyBackground(lastPosition)
+        applyUiTheme(lastInvertColors)
         dialogView
             .animate()
             .alpha(1f)
