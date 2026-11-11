@@ -40,6 +40,39 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
 
     private val executorService = Executors.newSingleThreadExecutor()
 
+    // Distinct tactile feedback per alert slider position.
+    // When the hardware vibrator supports the modern Composition primitives
+    // (PRIMITIVE_TICK / PRIMITIVE_CLICK), use composed effects; otherwise fall
+    // back to the legacy predefined VibrationEffect constants.
+    private val areAllPrimitivesSupported by lazy {
+        vibrator.areAllPrimitivesSupported(
+            VibrationEffect.Composition.PRIMITIVE_TICK,
+            VibrationEffect.Composition.PRIMITIVE_CLICK,
+        )
+    }
+
+    // Single PRIMITIVE_TICK — used for Silent / DND (zen) positions.
+    private val composedTick by lazy {
+        VibrationEffect.startComposition()
+            .addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK)
+            .compose()
+    }
+
+    // Single PRIMITIVE_CLICK — used for Normal / Torch positions.
+    private val composedClick by lazy {
+        VibrationEffect.startComposition()
+            .addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK)
+            .compose()
+    }
+
+    // Double PRIMITIVE_CLICK — used for Vibrate position.
+    private val composedDoubleClick by lazy {
+        VibrationEffect.startComposition()
+            .addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK)
+            .addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK)
+            .compose()
+    }
+
     private var wasMuted = false
     private val broadcastReceiver =
         object : BroadcastReceiver() {
@@ -94,12 +127,20 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
     }
 
     private fun vibrateIfNeeded(mode: Int) {
-        when (mode) {
-            AudioManager.RINGER_MODE_VIBRATE ->
-                vibrator.vibrate(MODE_VIBRATION_EFFECT, HARDWARE_FEEDBACK_VIBRATION_ATTRIBUTES)
-            AudioManager.RINGER_MODE_NORMAL ->
-                vibrator.vibrate(MODE_NORMAL_EFFECT, HARDWARE_FEEDBACK_VIBRATION_ATTRIBUTES)
-        }
+        val effect =
+            when (mode) {
+                AudioManager.RINGER_MODE_SILENT,
+                ZEN_PRIORITY_ONLY,
+                ZEN_TOTAL_SILENCE,
+                ZEN_ALARMS_ONLY ->
+                    if (areAllPrimitivesSupported) composedTick else MODE_TICK_EFFECT
+                AudioManager.RINGER_MODE_VIBRATE ->
+                    if (areAllPrimitivesSupported) composedDoubleClick else MODE_DOUBLE_CLICK_EFFECT
+                AudioManager.RINGER_MODE_NORMAL, TORCH_ON, TORCH_OFF ->
+                    if (areAllPrimitivesSupported) composedClick else MODE_CLICK_EFFECT
+                else -> return
+            }
+        vibrator.vibrate(effect, HARDWARE_FEEDBACK_VIBRATION_ATTRIBUTES)
     }
 
     private fun handleMode(position: Int, firstRun: Boolean) {
@@ -219,8 +260,9 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
         private val HARDWARE_FEEDBACK_VIBRATION_ATTRIBUTES =
             VibrationAttributes.createForUsage(VibrationAttributes.USAGE_HARDWARE_FEEDBACK)
 
-        // Vibration effects
-        private val MODE_NORMAL_EFFECT = VibrationEffect.get(VibrationEffect.EFFECT_HEAVY_CLICK)
-        private val MODE_VIBRATION_EFFECT = VibrationEffect.get(VibrationEffect.EFFECT_DOUBLE_CLICK)
+        // Legacy vibration effects (used when Composition primitives are unsupported).
+        private val MODE_TICK_EFFECT = VibrationEffect.get(VibrationEffect.EFFECT_TICK)
+        private val MODE_CLICK_EFFECT = VibrationEffect.get(VibrationEffect.EFFECT_CLICK)
+        private val MODE_DOUBLE_CLICK_EFFECT = VibrationEffect.get(VibrationEffect.EFFECT_DOUBLE_CLICK)
     }
 }
