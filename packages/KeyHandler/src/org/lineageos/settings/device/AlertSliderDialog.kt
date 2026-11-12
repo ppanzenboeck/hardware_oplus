@@ -322,7 +322,7 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
         (SURFACE_ALPHA shl 24) or (color and 0x00FFFFFF)
 
     private fun applyUiMode(ringerMode: Int, invertColors: Boolean) {
-        iconView.setImageResource(
+        val newIconRes =
             when (ringerMode) {
                 AudioManager.RINGER_MODE_SILENT -> R.drawable.ic_volume_ringer_mute
                 AudioManager.RINGER_MODE_VIBRATE -> R.drawable.ic_volume_ringer_vibrate
@@ -334,7 +334,32 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
                 KeyHandler.TORCH_OFF -> R.drawable.ic_torch_off
                 else -> R.drawable.ic_info
             }
-        )
+
+        // Animate a subtle scale-pop around the icon swap instead of an abrupt
+        // instant change: shrink + fade down, swap the drawable at the trough,
+        // then spring back to full size (OvershootInterpolator). This mirrors the
+        // spring-like feel of the SystemUI volume dialog's ringer icon transitions.
+        // Cancel any in-flight pop so a rapid mode change converges cleanly to 1.0.
+        iconView.animate().cancel()
+        iconView
+            .animate()
+            .scaleX(0.85f)
+            .scaleY(0.85f)
+            .alpha(0.5f)
+            .setDuration(120)
+            .setInterpolator(AccelerateInterpolator())
+            .withEndAction {
+                iconView.setImageResource(newIconRes)
+                iconView
+                    .animate()
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .alpha(1f)
+                    .setDuration(200)
+                    .setInterpolator(OvershootInterpolator())
+                    .start()
+            }
+            .start()
 
         textView.setText(
             when (ringerMode) {
