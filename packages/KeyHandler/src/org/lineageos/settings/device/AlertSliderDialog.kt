@@ -17,10 +17,13 @@ import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.Drawable
+import android.graphics.drawable.LayerDrawable
 import android.graphics.drawable.TransitionDrawable
 import android.media.AudioManager
 import android.view.Gravity
 import android.view.Surface
+import android.view.View
 import android.view.ViewGroup
 import android.view.Window
 import android.view.WindowManager
@@ -30,6 +33,7 @@ import android.view.animation.OvershootInterpolator
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.android.internal.graphics.drawable.BackgroundBlurDrawable
 
 class AlertSliderDialog(private val context: Context, private val sysuiContext: Context) :
     Dialog(context, R.style.alert_slider_theme) {
@@ -48,6 +52,21 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
 
     private var isAnimating = false
     private var animator = ValueAnimator()
+
+    // Latest applied state, cached so the layered surface can be re-applied
+    // once the dialog window is actually attached to its ViewRootImpl. The
+    // initial setState() runs before show()/attach (the plugin sends
+    // MSG_DIALOG_UPDATE before MSG_DIALOG_SHOW), so viewRootImpl is still null
+    // at that point and the surface layer silently falls back to the plain
+    // shape drawable.
+    private var lastPosition = KeyHandler.POSITION_MIDDLE
+    private var lastRingerMode = NONE
+    private var lastInvertColors = false
+    private var lastAttached = false
+    // Resolved final window position (incl. the top/bottom delta), cached so the
+    // layered surface can be re-applied without losing the pill's offset.
+    private var lastEndX = 0
+    private var lastEndY = 0
 
     init {
         window?.let {
@@ -116,6 +135,41 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
                     y = yPos
                 }
         }
+
+        // Re-apply the layered surface as soon as the dialog window is
+        // attached. The initial setState() runs before show()/attach (the
+        // plugin sends MSG_DIALOG_UPDATE before MSG_DIALOG_SHOW), so
+        // viewRootImpl is null then and the surface layer silently falls back
+        // to the plain shape drawable. The window's addView() inside
+        // super.show() fires onViewAttachedToWindow, so the first visible frame
+        // already carries the surface layer; show() below also re-applies as a
+        // belt-and-suspenders guard against any attach path this listener
+        // misses.
+        frameView.addOnAttachStateChangeListener(
+            object : View.OnAttachStateChangeListener {
+                override fun onViewAttachedToWindow(view: View) {
+                    if (!lastAttached) {
+                        applySurfaceLayerBackground()
+                        lastAttached = true
+                    }
+                }
+
+                override fun onViewDetachedFromWindow(view: View) {
+                    lastAttached = false
+                }
+            }
+        )
+    }
+
+    /**
+     * Re-applies the UI mode and the layered translucent surface using the
+     * last known state. Safe to call repeatedly; used to guarantee the
+     * [BackgroundBlurDrawable] layer is bound before the first frame is drawn,
+     * regardless of when the dialog window was attached.
+     */
+    private fun applySurfaceLayerBackground() {
+        applyUiMode(lastRingerMode, lastInvertColors)
+        applyPositionAndBackground(lastEndX, lastEndY, lastPosition)
     }
 
     @Synchronized
@@ -138,6 +192,11 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
             applyUiMode(ringerMode, invertColors)
             applyPositionAndBackground(endX, endY, position)
         }
+        lastPosition = position
+        lastRingerMode = ringerMode
+        lastInvertColors = invertColors
+        lastEndX = endX
+        lastEndY = endY
     }
 
     @Synchronized
@@ -179,9 +238,11 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
                         TransitionDrawable(
                             arrayOf(
                                 frameView.background,
-                                context.resources.getDrawable(
-                                    backgroundFor(rotation, position, flip),
-                                    null,
+                                buildPillBackground(
+                                    context.resources.getDrawable(
+                                        backgroundFor(rotation, position, flip),
+                                        null,
+                                    ),
                                 ),
                             )
                         )
@@ -209,13 +270,6 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
             (currentUiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
                 android.content.res.Configuration.UI_MODE_NIGHT_YES
 
-        val bgResId =
-            if (isDark) {
-                android.R.color.system_neutral1_800
-            } else {
-                android.R.color.system_neutral1_100
-            }
-
         val accentResId =
             if (isDark) {
                 android.R.color.system_accent1_100
@@ -223,7 +277,7 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
                 android.R.color.system_accent1_500
             }
 
-        val bgColor = sysuiContext.getColor(bgResId)
+        val bgColor = resolveSurfaceColor(isDark)
         val accentColor = sysuiContext.getColor(accentResId)
 
         val activeFg = if (invertColors) bgColor else accentColor
@@ -231,8 +285,42 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
 
         textView.setTextColor(activeFg)
         iconView.imageTintList = ColorStateList.valueOf(activeFg)
-        frameView.backgroundTintList = ColorStateList.valueOf(activeBg)
+        // Opacity lives in the color value itself, exactly like SystemUI's
+        // @drawable/volume_dialog_background, which carries no android:alpha and
+        // leans on the surface token's own translucency instead of a frosted
+        // blur. The inverted variant keeps the accent fully opaque so the pill
+        // stays legible against the wallpaper.
+        frameView.backgroundTintList =
+            ColorStateList.valueOf(if (invertColors) activeBg else withSurfaceAlpha(activeBg))
     }
+
+    /**
+     * Resolves the Material You surface token SystemUI paints the volume dialog
+     * with ([@android:color/materialColorSurface]). That token is private to the
+     * framework (it has no public.xml entry), so it is looked up by name and
+     * resolved through the SystemUI context, which already carries the right
+     * night-mode configuration. Falls back to the public neutral ramp when the
+     * token is unavailable.
+     */
+    private fun resolveSurfaceColor(isDark: Boolean): Int {
+        val token =
+            sysuiContext.resources.getIdentifier("materialColorSurface", "color", "android")
+        return if (token != 0) {
+            sysuiContext.getColor(token)
+        } else {
+            sysuiContext.getColor(
+                if (isDark) {
+                    android.R.color.system_neutral1_800
+                } else {
+                    android.R.color.system_neutral1_100
+                }
+            )
+        }
+    }
+
+    /** Bakes [SURFACE_ALPHA] into [color] so the surface reads translucent. */
+    private fun withSurfaceAlpha(color: Int): Int =
+        (SURFACE_ALPHA shl 24) or (color and 0x00FFFFFF)
 
     private fun applyUiMode(ringerMode: Int, invertColors: Boolean) {
         iconView.setImageResource(
@@ -273,7 +361,44 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
                     y = endY
                 }
         }
-        frameView.setBackgroundResource(backgroundFor(rotation, position, flip))
+        frameView.background =
+            buildPillBackground(
+                context.resources.getDrawable(backgroundFor(rotation, position, flip), null),
+            )
+    }
+
+    /**
+     * Composes the pill background the same way SystemUI composes the volume
+     * dialog surface in VolumeDialogSlidersViewBinder /
+     * VolumeDialogRingerViewBinder:
+     *
+     * ```
+     * val surfaceEffect = background as GradientDrawable
+     * val blurDrawable = viewRootImpl.createBackgroundBlurDrawable()
+     * blurDrawable.setCornerRadius(dialogCornerRadius.toFloat())
+     * blurDrawable.setBlurRadius(0)
+     * background = LayerDrawable(arrayOf<Drawable>(blurDrawable, surfaceEffect))
+     * ```
+     *
+     * The volume dialog is *not* frosted glass: it requests a
+     * [BackgroundBlurDrawable] but pins its blur radius to 0, so that layer is
+     * only a corner-clipped backing plate. All of the see-through quality comes
+     * from the surface token's own translucency, which is why [applyUiTheme]
+     * bakes the alpha into the tint instead of this helper lowering a drawable
+     * alpha. The view-level [android.view.View.backgroundTintList] still lands
+     * on the surface layer via [LayerDrawable] tint propagation.
+     */
+    private fun buildPillBackground(surface: Drawable): Drawable {
+        val viewRoot = frameView.viewRootImpl ?: return surface
+        val cornerRadius = context.resources.getDimension(R.dimen.alert_slider_corner_radius)
+
+        val blurDrawable = viewRoot.createBackgroundBlurDrawable()
+        // Match the volume dialog exactly: corner-clipped backing plate, no
+        // gaussian frost applied to the layers behind the dialog.
+        blurDrawable.setBlurRadius(0)
+        blurDrawable.setCornerRadius(cornerRadius)
+
+        return LayerDrawable(arrayOf<Drawable>(blurDrawable, surface))
     }
 
     private fun backgroundFor(rotation: Int, position: Int, flip: Boolean): Int {
@@ -316,6 +441,12 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
     override fun show() {
         dialogView.alpha = 0f
         super.show()
+        // The initial setState() ran before the window was attached, so
+        // viewRootImpl was null and the surface layer fell back to the plain
+        // shape drawable. Now that super.show() has attached the window,
+        // re-apply the layered background so the first visible frame is
+        // translucent.
+        applySurfaceLayerBackground()
         dialogView
             .animate()
             .alpha(1f)
@@ -336,5 +467,15 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
 
     companion object {
         private const val TAG = "AlertSliderDialog"
+
+        // Alpha byte (0-255) baked into the pill surface color. SystemUI's
+        // @drawable/volume_dialog_background sets no android:alpha at all and
+        // instead leans on the translucency of @color/materialColorSurface, so
+        // the equivalent translucency is folded into the tint here. ~90% keeps
+        // the pill legible over bright and dark wallpapers alike.
+        private const val SURFACE_ALPHA = 0xE6
+
+        // Ringer mode sentinel (mirrors AlertSliderPlugin.NONE).
+        private const val NONE = -1
     }
 }
